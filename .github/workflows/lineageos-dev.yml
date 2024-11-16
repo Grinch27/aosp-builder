@@ -359,7 +359,7 @@ jobs:
         # if: ${{ 'true' == 'false' }} # disable
         env:
           DEBIAN_FRONTEND: noninteractive
-        working-directory: /
+        working-directory: /tmp/
         run: |
           echo -e "Current working directory: $(pwd)"
 
