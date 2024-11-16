@@ -613,7 +613,6 @@ jobs:
         run: |
           echo "Current working directory: $(pwd)"
           export PATH=~/bin:$PATH
-          set -x
 
           # ---------- mka ----------
           # - **`breakfast`**：LineageOS 的命令，用于设置构建环境，类似于 `lunch`。
@@ -647,7 +646,9 @@ jobs:
 
           # ---------- Prepare the device-specific code ----------
           echo "===== source build/envsetup.sh ====="
+          set -x
           source build/envsetup.sh
+          set +x
 
           echo "===== menu: lunch/breakfast/brunch ====="
           set +e
@@ -667,40 +668,38 @@ jobs:
 
           if [ -n "${{ inputs.lunch_code }}" ]; then
             # 使用 lunch 设置构建环境
+            set -x
             echo "===== lunch: ${{ inputs.lunch_code }} ====="
             lunch ${{ inputs.lunch_code }}
             echo "===== mka ====="
-            set +e
             mka
-            set -e
-            # 使用 mka 编译内核 https://faint.day/zh/blog/build-lineageos-custom-kernel/
-            # mka kernel
-            # 使用 mka 构建特定目标
-            # mka recoveryimage
-            # mka iso_img
+            set +x
           elif [ -n "${{ inputs.breakfast_code }}" ]; then
             # 使用 breakfast 设置构建环境
+            set -x
             echo "===== breakfast: ${{ inputs.breakfast_code }} ====="
             breakfast ${{ inputs.breakfast_code }}
             echo "===== mka ====="
-            set +e
             mka
-            set -e
-            # 使用 mka 编译内核 https://faint.day/zh/blog/build-lineageos-custom-kernel/
-            # mka kernel
-            # 使用 mka 构建特定目标
-            # mka recoveryimage
-            # mka iso_img
+            set +x
           elif [ -n "${{ inputs.brunch_code }}" ]; then
             # 使用 brunch 设置环境并构建
+            set -x
             echo "===== croot ====="
             croot
             echo "===== brunch: ${{ inputs.brunch_code }} ====="
             brunch ${{ inputs.brunch_code }}
+            set +x
           else
             echo "未提供有效的构建代码，退出。" >&2
             exit 1
           fi
+
+          # 使用 mka 编译内核 https://faint.day/zh/blog/build-lineageos-custom-kernel/
+          # mka kernel
+          # 使用 mka 构建特定目标
+          # mka recoveryimage
+          # mka iso_img
 
           df -Th
           echo "Build completed"
