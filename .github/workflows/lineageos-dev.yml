@@ -613,6 +613,7 @@ jobs:
         run: |
           echo "Current working directory: $(pwd)"
           export PATH=~/bin:$PATH
+          set -x
 
           # ---------- mka ----------
           # - **`breakfast`**：LineageOS 的命令，用于设置构建环境，类似于 `lunch`。
