@@ -34,7 +34,7 @@ jobs:
           - manifest-repo: "https://github.com/LineageOS/android.git"
             manifest-branch: "lineage-17.1"
             device_code: "ginkgo"
-            brunch_code: "lineage_arm64-userdebug"
+            lunch_code: "lineage_arm64-userdebug"
           - manifest-repo: "https://github.com/LineageOS/android.git"
             manifest-branch: "lineage-18.1"
             device_code: "flame"
@@ -42,8 +42,13 @@ jobs:
           - manifest-repo: "https://github.com/LineageOS/android.git"
             manifest-branch: "lineage-18.1"
             device_code: "flame"
-            brunch_code: "lineage_arm64-userdebug"
+            lunch_code: "lineage_arm64-userdebug"
           # ========== x86_64 ==========
+          # ---------- lineage-18.1 ----------
+          - manifest-repo: "https://github.com/LineageOS/android.git"
+            manifest-branch: "lineage-18.1"
+            device_code: "x86_64"
+            lunch_code: "lineage_x86_64-userdebug"
           # ---------- lineage-17.1 ----------
           - manifest-repo: "https://github.com/LineageOS/android.git"
             manifest-branch: "lineage-17.1"
