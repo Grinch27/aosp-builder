@@ -627,7 +627,6 @@ jobs:
           #     - 禁用了调试功能。
           #     - 进行了优化以提高性能。
           #   - **适用场景**：正式发布的生产环境版本。
-
           # 2. **`userdebug`**：
           #   - **用途**：用于开发和测试的版本。
           #   - **特点**：
@@ -635,7 +634,6 @@ jobs:
           #     - 包含额外的调试工具和选项。
           #     - 可以通过 `adb` 访问和调试设备。
           #   - **适用场景**：开发和测试阶段，允许调试和测试。
-
           # 3. **`eng`**：
           #   - **用途**：用于工程师开发的版本。
           #   - **特点**：
@@ -643,6 +641,12 @@ jobs:
           #     - 禁用了某些优化，以便更容易调试。
           #     - 包含更多的日志和调试信息。
           #   - **适用场景**：开发阶段，工程师需要完全的调试和测试能力。
+
+          # ---------- cf, gsi, sdk, tv ----------
+          # - **`cf`（Cuttlefish）**：用于在虚拟化环境中运行 Android 系统，主要用于开发和测试。
+          # - **`gsi`（Generic System Image）**：用于测试和验证设备的兼容性，确保设备符合 Android 供应商测试套件（VTS）的要求。
+          # - **`sdk`（Software Development Kit）**：用于开发 Android 应用程序，提供构建、调试和测试工具。
+          # - **`tv`（Television）**：用于电视设备的版本。
 
           # ---------- Prepare the device-specific code ----------
           echo "===== source build/envsetup.sh ====="
@@ -704,9 +708,19 @@ jobs:
           df -Th
           echo "Build completed"
 
+      - name: Check output
+        id: output
+        working-directory: ${{ env.PATH_BUILD }}
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          echo "Checking for build artifacts in ./out/target/product/:"
+          find ./out/target/product/ -type f -exec ls -lh {} \;
+
+          echo "status=success" >> $GITHUB_OUTPUT
+
       - name: Upload OpenWrt to Release
         id: release
-        if: ${{ 'true' == 'false' }} # disable
+        # if: ${{ 'true' == 'false' }} # disable
         uses: ncipollo/release-action@main
         with:
           name: "lineageos-build"

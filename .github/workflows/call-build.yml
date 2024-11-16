@@ -44,11 +44,16 @@ jobs:
             device_code: "flame"
             lunch_code: "lineage_arm64-userdebug"
           # ========== x86_64 ==========
+          # ---------- lineage-20.0 ----------
+          - manifest-repo: "https://github.com/LineageOS/android.git"
+            manifest-branch: "lineage-19.1"
+            device_code: "x86_64"
+            lunch_code: "lineage_gsi_tv_x86_64-userdebug"
           # ---------- lineage-19.1 ----------
           - manifest-repo: "https://github.com/LineageOS/android.git"
             manifest-branch: "lineage-19.1"
             device_code: "x86_64"
-            lunch_code: "lineage_x86_64-userdebug"
+            lunch_code: "lineage_gsi_tv_x86_64-userdebug"
           # ---------- lineage-18.1 ----------
           - manifest-repo: "https://github.com/LineageOS/android.git"
             manifest-branch: "lineage-18.1"
