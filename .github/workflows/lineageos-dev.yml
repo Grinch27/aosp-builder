@@ -706,6 +706,7 @@ jobs:
 
       - name: Upload OpenWrt to Release
         id: release
+        if: ${{ 'true' == 'false' }} # disable
         uses: ncipollo/release-action@main
         with:
           name: "lineageos-build"
