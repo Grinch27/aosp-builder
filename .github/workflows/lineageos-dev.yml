@@ -88,14 +88,14 @@ on:
         required: false
         type: string
 
-run-name: ${{ inputs.manifest-repo }} - ${{ inputs.manifest-branch }} - ${{ inputs.lunch_code }} ${{ inputs.breakfast_code }} ${{ inputs.brunch_code }}
+run-name: ${{ inputs.device_code }} - ${{ inputs.lunch_code }} ${{ inputs.breakfast_code }} ${{ inputs.brunch_code }} - ${{ inputs.manifest-repo }} - ${{ inputs.manifest-branch }}
 
 env:
   custom_env: ${{ inputs.custom_env || '' }}
 
 jobs:
   build:
-    name: ${{ inputs.manifest-repo }} - ${{ inputs.manifest-branch }} - ${{ inputs.lunch_code }} ${{ inputs.breakfast_code }} ${{ inputs.brunch_code }}
+    name: ${{ inputs.device_code }} - ${{ inputs.lunch_code }} ${{ inputs.breakfast_code }} ${{ inputs.brunch_code }} - ${{ inputs.manifest-repo }} - ${{ inputs.manifest-branch }}
     runs-on: ${{ inputs.runner_image || 'ubuntu-latest' }}
     env:
       path_build: "/android/lineage"
