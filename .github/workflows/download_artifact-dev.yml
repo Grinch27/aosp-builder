@@ -56,7 +56,7 @@ jobs:
             -9 \
             --extreme \
             --memlimit-compress=${memlimit} \
-            --check=crc32 \
+            --check=sha256 \
             --verbose \
             "${{ env.dir_output }}/${FILE_NAME}"
 
