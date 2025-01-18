@@ -342,13 +342,6 @@ jobs:
           sudo -E apt-get -y -qq install "${packages_slim[@]}"
           sudo -E apt-get -y -qq install "${packages_extra[@]}"
 
-          # For Ubuntu 23.10 (mantic), install libncurses5 from 23.04 (lunar) as follows:
-          # wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.4-2_amd64.deb && sudo dpkg -i libtinfo5_6.4-2_amd64.deb && rm -f libtinfo5_6.4-2_amd64.deb
-          wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libncurses5_6.3-2_amd64.deb && sudo dpkg -i libncurses5_6.3-2_amd64.deb && rm -f libncurses5_6.3-2_amd64.deb
-
-          # wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libncurses5_6.4-2_amd64.deb && sudo dpkg -i libncurses5_6.4-2_amd64.deb && rm -f libncurses5_6.4-2_amd64.deb
-          wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2_amd64.deb && sudo dpkg -i libtinfo5_6.3-2_amd64.deb && rm -f libtinfo5_6.3-2_amd64.deb
-
           # ===== reload =====
           sudo -E apt-get -qq -y autoremove --purge
           sudo -E apt-get -qq clean
@@ -367,13 +360,13 @@ jobs:
           echo -e "Current working directory: $(pwd)"
 
           # For Ubuntu 23.10 (mantic), install libncurses5 from 23.04 (lunar) as follows:
-          curl -O http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.4-2_amd64.deb
-          sudo dpkg -i libtinfo5_6.4-2_amd64.deb
-          rm -f libtinfo5_6.4-2_amd64.deb
+          curl -O http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2_amd64.deb
+          sudo dpkg -i libtinfo5_6.3-2_amd64.deb
+          rm -f libtinfo5_6.3-2_amd64.deb
 
-          curl -O http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libncurses5_6.4-2_amd64.deb
-          sudo dpkg -i libncurses5_6.4-2_amd64.deb
-          rm -f libncurses5_6.4-2_amd64.deb
+          curl -O http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libncurses5_6.3-2_amd64.deb
+          sudo dpkg -i libncurses5_6.3-2_amd64.deb
+          rm -f libncurses5_6.3-2_amd64.deb
 
           # ===== reload =====
           sudo -E apt-get -qq -y autoremove --purge
