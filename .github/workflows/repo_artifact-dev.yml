@@ -244,23 +244,23 @@ jobs:
           done
           set -e
 
-          packages_install=(
-            # ----- Language and Runtime -----
-            "clang"
-            "clang-format"
-            "clang-tidy"
-            "gcc"
-            "libgcc-${{ env.VERSION_GCC }}-dev"
-            "g++"
-            "cpp"
-            "libstdc++-${{ env.VERSION_GCC }}-dev"
-            "gfortran"
-            "libgfortran-${{ env.VERSION_GCC }}-dev"
-            # ----- Java -----
-            "openjdk-${{ env.VERSION_JDK }}-jdk"
-          )
-          echo "Packages to be installed: ${packages_install[@]}"
-          sudo -E apt-get -qq -y install "${packages_install[@]}"
+          # packages_install=(
+          #   # ----- Language and Runtime -----
+          #   "clang"
+          #   "clang-format"
+          #   "clang-tidy"
+          #   "gcc"
+          #   "libgcc-${{ env.VERSION_GCC }}-dev"
+          #   "g++"
+          #   "cpp"
+          #   "libstdc++-${{ env.VERSION_GCC }}-dev"
+          #   "gfortran"
+          #   "libgfortran-${{ env.VERSION_GCC }}-dev"
+          #   # ----- Java -----
+          #   "openjdk-${{ env.VERSION_JDK }}-jdk"
+          # )
+          # echo "Packages to be installed: ${packages_install[@]}"
+          # sudo -E apt-get -qq -y install "${packages_install[@]}"
 
           # ===== Clean Browsers and Drivers =====
           sudo -E rm -rf /usr/local/share/chromedriver-linux64
@@ -352,7 +352,7 @@ jobs:
 
       - name: Setup libncurses5
         id: libncurses5
-        # if: ${{ 'true' == 'false' }} # disable
+        if: ${{ 'true' == 'false' }} # disable
         env:
           DEBIAN_FRONTEND: noninteractive
         working-directory: /tmp/
@@ -377,6 +377,7 @@ jobs:
           echo "status=success" >> ${GITHUB_OUTPUT}
 
       - name: Setup JDK
+        if: ${{ 'true' == 'false' }} # disable
         uses: actions/setup-java@main
         with:
           distribution: "temurin"
