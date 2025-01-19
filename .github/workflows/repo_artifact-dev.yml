@@ -184,23 +184,21 @@ jobs:
 
           df -Th
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
-
+      
       - name: Clean Runner
         id: clean-runner
-        # if: ${{ 'true' == 'false' }} # disable
         env:
           DEBIAN_FRONTEND: noninteractive
-          VERSION_GCC: 13
-          VERSION_JDK: ${{ inputs.java-version || '11' }}
         working-directory: /
         run: |
           echo -e "Current working directory: $(pwd)"
-
-          # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
-          sudo -E apt-get -qq -y update
-          installed_packages=$(dpkg-query -W -f='${binary:Package}\n')
+          df -Th
 
           # ===== Clean Apt =====
+          # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
+          sudo -E apt-get -yqq update
+          package_installed=$(dpkg-query -W -f='${binary:Package}\n')
+
           # ----- package for purge -----
           packages_purge=(
             "docker*"
@@ -211,7 +209,6 @@ jobs:
             "dotnet*"
             "powershell*"
             "microsoft-edge*"
-            # Databases
             "sqlite*"
             "postgresql*"
             "mysql*"
@@ -221,61 +218,7 @@ jobs:
             "nginx*"
             "php*"
           )
-          sudo -E apt-get -qq -y autoremove --purge "${packages_purge[@]}"
-
-          # ----- package for re-install -----
-          regexes=(
-            # ----- Language and Runtime -----
-            "clang-1[0-7].*"
-            "clang-format-1[0-7].*"
-            "clang-tidy-1[0-7].*"
-            "gcc-1[24].*"
-            "libgcc-1[24].*"
-            "g++-1[24].*"
-            "cpp-1[24].*"
-            "libstdc++-1[24].*"
-            "gfortran-1[24].*"
-            "libgfortran-1[24].*"
-            # ----- Java -----
-            "temurin-[0-9]+-jdk"
-          )
-          packages_purge=()
-          for regex in "${regexes[@]}"; do
-            for package in $installed_packages; do
-              if [[ $package =~ $regex ]]; then
-                  packages_purge+=("$package")
-              fi
-            done
-          done
-
-          echo "Packages to be purged: ${packages_purge[@]}"
-          set +e
-          for package in "${packages_purge[@]}"; do
-            echo "Attempting to remove $package"
-            sudo -E apt-get -qq -y autoremove --purge $package
-            if [[ $? -ne 0 ]]; then
-              echo "Failed to remove $package"
-            fi
-          done
-          set -e
-
-          # packages_install=(
-          #   # ----- Language and Runtime -----
-          #   "clang"
-          #   "clang-format"
-          #   "clang-tidy"
-          #   "gcc"
-          #   "libgcc-${{ env.VERSION_GCC }}-dev"
-          #   "g++"
-          #   "cpp"
-          #   "libstdc++-${{ env.VERSION_GCC }}-dev"
-          #   "gfortran"
-          #   "libgfortran-${{ env.VERSION_GCC }}-dev"
-          #   # ----- Java -----
-          #   "openjdk-${{ env.VERSION_JDK }}-jdk"
-          # )
-          # echo "Packages to be installed: ${packages_install[@]}"
-          # sudo -E apt-get -qq -y install "${packages_install[@]}"
+          sudo -E apt-get -yqq autoremove --purge "${packages_purge[@]}"
 
           # ===== Clean Browsers and Drivers =====
           sudo -E rm -rf /usr/local/share/chromedriver-linux64
@@ -290,20 +233,142 @@ jobs:
           # ===== Clean Android Tools =====
           sudo find /usr/local/lib/android/sdk/ndk/ -type d -regex '.*/2[0-6].*' -exec rm -rf {} +
 
-          # ===== Clean Swap =====
+          # ===== Clean AGENT_TOOLSDIRECTORY =====
           # 如果环境变量 AGENT_TOOLSDIRECTORY 不为空，则删除该目录及其所有内容
           [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+
+          # ===== Clean Swap =====
           # 关闭所有交换空间 删除指定的交换文件
           sudo swapoff -a
           sudo rm -f /swapfile /mnt/swapfile
 
           # ===== reload =====
-          sudo -E apt-get -qq -y autoremove --purge
+          sudo -E apt-get -yqq autoremove --purge
           sudo -E apt-get -qq clean
           sudo -E systemctl daemon-reload
 
           df -Th
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
+
+      # - name: Clean Runner
+      #   id: clean-runner
+      #   # if: ${{ 'true' == 'false' }} # disable
+      #   env:
+      #     DEBIAN_FRONTEND: noninteractive
+      #     version_gcc: 13
+      #     VERSION_JDK: ${{ inputs.java-version || '11' }}
+      #   working-directory: /
+      #   run: |
+      #     echo -e "Current working directory: $(pwd)"
+
+      #     # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
+      #     sudo -E apt-get -qq -y update
+      #     installed_packages=$(dpkg-query -W -f='${binary:Package}\n')
+
+      #     # ===== Clean Apt =====
+      #     # ----- package for purge -----
+      #     packages_purge=(
+      #       "docker*"
+      #       "ghc*"
+      #       "zulu*"
+      #       "google*"
+      #       "firefox*"
+      #       "dotnet*"
+      #       "powershell*"
+      #       "microsoft-edge*"
+      #       # Databases
+      #       "sqlite*"
+      #       "postgresql*"
+      #       "mysql*"
+      #       "mongodb*"
+      #       "moby*"
+      #       "apache2*"
+      #       "nginx*"
+      #       "php*"
+      #     )
+      #     sudo -E apt-get -qq -y autoremove --purge "${packages_purge[@]}"
+
+      #     # ----- package for re-install -----
+      #     regexes=(
+      #       # ----- Language and Runtime -----
+      #       "clang-1[0-7].*"
+      #       "clang-format-1[0-7].*"
+      #       "clang-tidy-1[0-7].*"
+      #       "gcc-1[24].*"
+      #       "libgcc-1[24].*"
+      #       "g++-1[24].*"
+      #       "cpp-1[24].*"
+      #       "libstdc++-1[24].*"
+      #       "gfortran-1[24].*"
+      #       "libgfortran-1[24].*"
+      #       # ----- Java -----
+      #       "temurin-[0-9]+-jdk"
+      #     )
+      #     packages_purge=()
+      #     for regex in "${regexes[@]}"; do
+      #       for package in $installed_packages; do
+      #         if [[ $package =~ $regex ]]; then
+      #             packages_purge+=("$package")
+      #         fi
+      #       done
+      #     done
+
+      #     echo "Packages to be purged: ${packages_purge[@]}"
+      #     set +e
+      #     for package in "${packages_purge[@]}"; do
+      #       echo "Attempting to remove $package"
+      #       sudo -E apt-get -qq -y autoremove --purge $package
+      #       if [[ $? -ne 0 ]]; then
+      #         echo "Failed to remove $package"
+      #       fi
+      #     done
+      #     set -e
+
+      #     # packages_install=(
+      #     #   # ----- Language and Runtime -----
+      #     #   "clang"
+      #     #   "clang-format"
+      #     #   "clang-tidy"
+      #     #   "gcc"
+      #     #   "libgcc-${{ env.version_gcc }}-dev"
+      #     #   "g++"
+      #     #   "cpp"
+      #     #   "libstdc++-${{ env.version_gcc }}-dev"
+      #     #   "gfortran"
+      #     #   "libgfortran-${{ env.version_gcc }}-dev"
+      #     #   # ----- Java -----
+      #     #   "openjdk-${{ env.VERSION_JDK }}-jdk"
+      #     # )
+      #     # echo "Packages to be installed: ${packages_install[@]}"
+      #     # sudo -E apt-get -qq -y install "${packages_install[@]}"
+
+      #     # ===== Clean Browsers and Drivers =====
+      #     sudo -E rm -rf /usr/local/share/chromedriver-linux64
+      #     sudo -E rm -rf /usr/local/share/chromium
+      #     sudo -E rm -rf /usr/local/share/edge_driver
+      #     sudo -E rm -rf /usr/local/share/gecko_driver
+      #     sudo -E rm -rf /usr/share/java/selenium-server.jar
+
+      #     # ===== Clean PowerShell Tools =====
+      #     sudo -E rm -rf /usr/local/share/powershell
+
+      #     # ===== Clean Android Tools =====
+      #     sudo find /usr/local/lib/android/sdk/ndk/ -type d -regex '.*/2[0-6].*' -exec rm -rf {} +
+
+      #     # ===== Clean Swap =====
+      #     # 如果环境变量 AGENT_TOOLSDIRECTORY 不为空，则删除该目录及其所有内容
+      #     [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+      #     # 关闭所有交换空间 删除指定的交换文件
+      #     sudo swapoff -a
+      #     sudo rm -f /swapfile /mnt/swapfile
+
+      #     # ===== reload =====
+      #     sudo -E apt-get -qq -y autoremove --purge
+      #     sudo -E apt-get -qq clean
+      #     sudo -E systemctl daemon-reload
+
+      #     df -Th
+      #     echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Initialization environment
         id: init
@@ -361,6 +426,109 @@ jobs:
           sudo -E apt-get -qq -y autoremove --purge
           sudo -E apt-get -qq clean
           sudo -E systemctl daemon-reload
+
+          df -Th
+          echo "status=success" | tee -a ${GITHUB_OUTPUT}
+
+      - name: Switch GNU C++ Compiler
+        id: switch-gcc
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          version_gcc: ${{ env.version_gcc || '14' }}
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          df -Th
+
+          sudo -E apt-get -yqq update
+          package_installed=$(dpkg-query -W -f='${binary:Package}\n')
+
+          # ========== apt purge ==========
+          regexes=(
+            "gcc-[0-9]+.*"
+            "libgcc-[0-9]+.*"
+            "g++-[0-9]+.*"
+            "cpp-[0-9]+.*"
+            "libstdc++-[0-9]+.*"
+            "gfortran-[0-9]+.*"
+            "libgfortran-[0-9]+.*"
+          )
+          packages_purge=()
+          for regex in "${regexes[@]}"; do
+            for package in $package_installed; do
+              if [[ $package =~ $regex ]]; then
+                  packages_purge+=("$package")
+              fi
+            done
+          done
+          echo "Packages to be purged: ${packages_purge[@]}"
+
+          set +e
+          for package in "${packages_purge[@]}"; do
+            echo "Attempting to remove $package"
+            sudo -E apt-get -yqq autoremove --purge $package
+            if [[ $? -ne 0 ]]; then
+              echo "Failed to remove $package"
+            fi
+          done
+          set -e
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+
+          # ========== apt install ==========
+          packages_install=(
+            # ----- gcc -----
+            "gcc-${{ env.version_gcc }}"
+            "libgcc-${{ env.version_gcc }}-dev"
+            "gcc-${{ env.version_gcc }}-multilib"
+            # ----- g++ -----
+            "g++-${{ env.version_gcc }}"
+            "libstdc++-${{ env.version_gcc }}-dev"
+            "g++-${{ env.version_gcc }}-multilib"
+            # -----cpp -----
+            "cpp-${{ env.version_gcc }}"
+            # ----- gfortran -----
+            "gfortran-${{ env.version_gcc }}"
+            "libgfortran-${{ env.version_gcc }}-dev"
+          )
+          echo "Packages to be installed: ${packages_install[@]}"
+          sudo -E apt-get -yqq install "${packages_install[@]}"
+
+          # ========== update-alternatives ==========
+          ls /usr/bin/gcc-* /usr/bin/g++-*
+          tools_gcc=(
+            "gcc"
+            "gcc-ar"
+            "gcc-nm"
+            "gcc-ranlib"
+            "g++"
+          )
+          # ===== update-alternatives --install <link> <name> <path> <priority> =====
+          for tool in "${tools_gcc[@]}"; do
+            versions=$(ls /usr/bin/${tool}-* | grep -Eo '[0-9]+$' | sort -u)
+            for version in ${versions}; do
+              sudo update-alternatives --install /usr/bin/${tool} ${tool} /usr/bin/${tool}-${version} ${version}
+            done
+          done
+          # ===== update-alternatives --query <name> =====
+          sudo update-alternatives --query gcc
+          sudo update-alternatives --query g++
+          # ===== update-alternatives --set <name> <path> =====
+          for tool in "${tools_gcc[@]}"; do
+            sudo update-alternatives --set ${tool} /usr/bin/${tool}-${{ env.version_gcc }}
+          done
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+
+          # ===== verify version =====
+          gcc --version
+          g++ --version
+          echo "Switched to GCC/G++ version ${version_gcc}"
 
           df -Th
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
