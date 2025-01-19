@@ -171,6 +171,7 @@ jobs:
         working-directory: /
         run: |
           echo -e "Current working directory: $(pwd)"
+          df -Th
 
           docker image list
           docker image prune -a -f
@@ -178,6 +179,7 @@ jobs:
           #   docker rmi -f $image
           # done
 
+          df -Th
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Clean Runner
