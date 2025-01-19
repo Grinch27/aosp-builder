@@ -120,7 +120,7 @@ jobs:
             echo "${var}=${!var}" | tee -a $GITHUB_ENV
           done
 
-          echo "status=success" >> ${GITHUB_OUTPUT}
+          echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Load Custom Environment Variables
         id: env-custom
@@ -161,7 +161,24 @@ jobs:
           EOF'
           sudo -E systemctl daemon-reload
 
-          echo "status=success" >> ${GITHUB_OUTPUT}
+          echo "status=success" | tee -a ${GITHUB_OUTPUT}
+
+      - name: Clean Docker
+        id: clean-docker
+        # if: ${{ 'true' == 'false' }} # disable
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        working-directory: /
+        run: |
+          echo -e "Current working directory: $(pwd)"
+
+          docker image list
+          docker image prune -a -f
+          # for image in $(docker images -q); do
+          #   docker rmi -f $image
+          # done
+
+          echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Clean Runner
         id: clean-runner
@@ -173,13 +190,6 @@ jobs:
         working-directory: /
         run: |
           echo -e "Current working directory: $(pwd)"
-
-          # ===== Clean Docker =====
-          docker image list
-          # for image in $(docker images -q); do
-          #   docker rmi -f $image
-          # done
-          docker image prune -a -f
 
           # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
           sudo -E apt-get -qq -y update
@@ -288,7 +298,7 @@ jobs:
           sudo -E systemctl daemon-reload
 
           df -Th
-          echo "status=success" >> ${GITHUB_OUTPUT}
+          echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Initialization environment
         id: init
@@ -348,7 +358,7 @@ jobs:
           sudo -E systemctl daemon-reload
 
           df -Th
-          echo "status=success" >> ${GITHUB_OUTPUT}
+          echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Setup libncurses5
         id: libncurses5
@@ -374,7 +384,7 @@ jobs:
           sudo -E systemctl daemon-reload
 
           df -Th
-          echo "status=success" >> ${GITHUB_OUTPUT}
+          echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Setup JDK
         if: ${{ 'true' == 'false' }} # disable
@@ -414,7 +424,7 @@ jobs:
             ls -lh ${dir}
           done
 
-          echo "status=success" >> ${GITHUB_OUTPUT}
+          echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Create simulated physical disk
         id: disk
