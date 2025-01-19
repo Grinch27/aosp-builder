@@ -606,11 +606,11 @@ jobs:
       - name: Compress Synced Directory to XZ
         if: always()
         env:
-          FILE_NAME: "lineageos_source" # 生成的压缩包名称（不含后缀）
-          dir_archive: ${{ env.path_build }} # 要压缩的目录，即 sync 完成后所在路径
-          dir_output: "/" # 压缩包输出目录
-          target_ext: "tar.xz" # 压缩后缀
-          retention_days: ${{ inputs.retention_days || '1' }}
+          FILE_NAME: "lineageos_source"
+          dir_archive: "${{ env.path_build }}"
+          dir_output: "${{ github.workspace }}"
+          target_ext: "tar.xz"
+          retention_days: "${{ inputs.retention_days || '1' }}"
         run: |
           echo "Directory to be compressed: ${dir_archive}"
           echo "Check memory info:"
@@ -635,12 +635,13 @@ jobs:
           tar -cJf "${ARCHIVE_PATH}" -C "${dir_archive}" .
 
           echo "Directory compressed as ${ARCHIVE_PATH}"
-          echo "COMPRESSED_FILE=${ARCHIVE_PATH}" >> $GITHUB_ENV
+          ls -lh "${ARCHIVE_PATH}"
+          echo "COMPRESSED_FILE=${ARCHIVE_PATH}" | tee -a $GITHUB_ENV
 
       - name: Upload Compressed Artifact
         if: always()
         uses: actions/upload-artifact@main
         with:
           name: compressed-file
-          path: "${{ env.path_build }}/*.tar.xz"
+          path: "${{ github.workspace }}/*.tar.xz"
           retention-days: ${{ env.retention_days || '1' }}
