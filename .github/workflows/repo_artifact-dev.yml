@@ -130,7 +130,8 @@ jobs:
         working-directory: /
         run: |
           echo "${{ env.custom_env }}" | tr '${{ env.flag_split }}' '\n' | tee -a $GITHUB_ENV
-
+      
+      # ========== Clean up environment ==========
       - name: Clean Snap
         id: clean-snap
         env:
@@ -138,8 +139,9 @@ jobs:
         working-directory: /
         run: |
           echo -e "Current working directory: $(pwd)"
+          df -Th
 
-          sudo -E apt-get -qq -y update
+          sudo -E apt-get -yqq update
           sudo snap list
 
           # ===== Remove snap =====
@@ -148,7 +150,7 @@ jobs:
           done
           sudo systemctl stop snapd
           sudo systemctl disable --now snapd.socket
-          sudo apt-get -qq -y autoremove --purge snapd
+          sudo apt-get -yqq autoremove --purge snapd
           sudo rm -rf ~/snap
           sudo rm -rf /snap
           sudo rm -rf /var/snap
@@ -161,6 +163,7 @@ jobs:
           EOF'
           sudo -E systemctl daemon-reload
 
+          df -Th
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Clean Docker
