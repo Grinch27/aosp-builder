@@ -49,7 +49,7 @@ jobs:
       clang_switch: false
       clang_version: 19
       # ----- jdk -----
-      jdk_purge: false
+      jdk_purge: true
       jdk_install: false
       jdk_switch: false
       jdk_version: 21
@@ -485,7 +485,9 @@ jobs:
           set -e
 
           # ===== Clean Android Tools =====
+          set +e
           sudo find /usr/local/lib/android/sdk/ndk/ -type d -regex '.*/[0-9]+.*' -exec rm -rf {} +
+          set -e
 
           # ========== reload ==========
           sudo -E apt-get -yqq autoremove --purge
