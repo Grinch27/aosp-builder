@@ -1,0 +1,722 @@
+name: Download LineageOS (Dev)
+
+on:
+  push:
+    paths:
+      - '.github/workflows/download_env-dev.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/download_env-dev.yml'
+  workflow_dispatch:
+    inputs:
+      manifest-repo:
+        description: "Manifest repository"
+        required: true
+        type: string
+        default: "https://github.com/LineageOS/android.git"
+      manifest-branch:
+        description: "Manifest branch"
+        required: true
+        default: "lineage-22.2"
+        type: string
+  workflow_call:
+    inputs:
+      manifest-repo:
+        description: "Manifest repository"
+        type: string
+        required: true
+      manifest-branch:
+        description: "Manifest branch"
+        required: true
+        type: string
+
+run-name: Download LineageOS (Dev)
+
+jobs:
+  build:
+    name: Download LineageOS (Dev)
+    runs-on: 'ubuntu-latest'
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      # ----- gcc -----
+      gcc_purge: true
+      gcc_install: true
+      gcc_switch: true
+      gcc_version: 14
+      # ----- clang -----
+      clang_purge: true
+      clang_install: false
+      clang_switch: false
+      clang_version: 19
+      # ----- jdk -----
+      jdk_purge: true
+      jdk_install: true
+      jdk_switch: true
+      jdk_version: 21
+      # ----- docker -----
+      docker_install: false
+      qemu_install: false
+      # ----- repo -----
+      path_build: "/android/lineage"
+      manifest-repo: ${{ inputs.manifest-repo || 'https://github.com/LineageOS/android.git' }}
+      manifest-branch: ${{ inputs.manifest-branch || 'lineage-22.2' }}
+    steps:
+      # ========== General Environment Setup: Start ==========
+      - name: (Purge) Snap
+        id: snap-purge
+        working-directory: /
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          df -Th
+          sudo -E apt-get -yqq update
+          package_installed=$(dpkg-query -W -f='${binary:Package}\n')
+
+          sudo snap list
+          # ===== Remove snap =====
+          for p in $(snap list | awk '{print $1}'); do
+            sudo snap remove $p
+          done
+          sudo systemctl stop snapd
+          sudo systemctl disable --now snapd.socket
+          sudo apt-get -yqq autoremove --purge snapd
+          sudo rm -rf ~/snap
+          sudo rm -rf /snap
+          sudo rm -rf /var/snap
+          sudo rm -rf /var/lib/snapd
+          sudo rm -rf /var/cache/snapd
+          sudo bash -c 'cat <<EOF > /etc/apt/preferences.d/nosnap.pref
+          Package: snapd
+          Pin: release a=*
+          Pin-Priority: -10
+          EOF'
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+      - name: (Clean) Docker Images
+        id: docker-clean
+        working-directory: /
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          df -Th
+
+          docker image list
+          docker image prune -a -f
+          # for image in $(docker images -q); do
+          #   docker rmi -f $image
+          # done
+
+          df -Th
+
+      - name: (Clean) Runner
+        id: runner-clean
+        working-directory: /
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          df -Th
+          sudo -E apt-get -yqq update
+          package_installed=$(dpkg-query -W -f='${binary:Package}\n')
+
+          # ===== Clean Apt =====
+          # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
+
+          # ----- package for purge -----
+          packages_purge=(
+            "docker*"
+            "ghc*"
+            "zulu*"
+            "google*"
+            "firefox*"
+            "dotnet*"
+            "powershell*"
+            "microsoft-edge*"
+            "sqlite*"
+            "postgresql*"
+            "mysql*"
+            "mongodb*"
+            "moby*"
+            "apache2*"
+            "nginx*"
+            "php*"
+          )
+          sudo -E apt-get -yqq autoremove --purge "${packages_purge[@]}"
+
+          # ===== Clean Browsers and Drivers =====
+          sudo -E rm -rf /usr/local/share/chromedriver-linux64
+          sudo -E rm -rf /usr/local/share/chromium
+          sudo -E rm -rf /usr/local/share/edge_driver
+          sudo -E rm -rf /usr/local/share/gecko_driver
+          sudo -E rm -rf /usr/share/java/selenium-server.jar
+
+          # ===== Clean PowerShell Tools =====
+          sudo -E rm -rf /usr/local/share/powershell
+
+          # ===== Clean AGENT_TOOLSDIRECTORY =====
+          # 如果环境变量 AGENT_TOOLSDIRECTORY 不为空，则删除该目录及其所有内容
+          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+
+          # ===== Clean Swap =====
+          # 关闭所有交换空间 删除指定的交换文件
+          sudo swapoff -a
+          sudo rm -f /swapfile /mnt/swapfile
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+      - name: (Purge) Existing GCC
+        id: gcc-purge
+        if: ${{ env.gcc_purge == 'true' }}
+        working-directory: /
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          df -Th
+          sudo -E apt-get -yqq update
+          package_installed=$(dpkg-query -W -f='${binary:Package}\n')
+
+          regexes=(
+            "gcc-[0-9]+.*"
+            "libgcc-[0-9]+.*"
+            "g++-[0-9]+.*"
+            "cpp-[0-9]+.*"
+            "libstdc++-[0-9]+.*"
+            "gfortran-[0-9]+.*"
+            "libgfortran-[0-9]+.*"
+          )
+          packages_purge=()
+          for regex in "${regexes[@]}"; do
+            for package in $package_installed; do
+              if [[ $package =~ $regex ]]; then
+                packages_purge+=("$package")
+              fi
+            done
+          done
+          echo "Packages to be purged: ${packages_purge[@]}"
+
+          set +e
+          for package in "${packages_purge[@]}"; do
+            echo "Attempting to remove $package"
+            sudo -E apt-get -yqq autoremove --purge $package
+            if [[ $? -ne 0 ]]; then
+              echo "Failed to remove $package"
+            fi
+          done
+          set -e
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+      - name: (Install) GCC - ${{ env.gcc_version }}
+        id: gcc-install
+        if: ${{ env.gcc_install == 'true' }}
+        working-directory: /
+        run: |
+          echo "Installing packages for GCC version ${gcc_version}"
+
+          packages_install=(
+            # ----- gcc -----
+            "gcc-${gcc_version}"
+            "libgcc-${gcc_version}-dev"
+            "gcc-${gcc_version}-multilib"
+            # ----- g++ -----
+            "g++-${gcc_version}"
+            "libstdc++-${gcc_version}-dev"
+            "g++-${gcc_version}-multilib"
+            # ----- cpp -----
+            "cpp-${gcc_version}"
+            # ----- gfortran -----
+            "gfortran-${gcc_version}"
+            "libgfortran-${gcc_version}-dev"
+          )
+          echo "Packages to be installed: ${packages_install[@]}"
+          sudo -E apt-get -yqq install "${packages_install[@]}"
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+      - name: (Switch) Installed GCC - ${{ env.gcc_version }}
+        id: gcc-switch
+        if: ${{ env.gcc_switch == 'true' }}
+        working-directory: /
+        run: |
+          echo "Setting alternatives for GCC version ${gcc_version}"
+
+          ls /usr/bin/gcc-* /usr/bin/g++-*
+
+          tools_gcc=(
+            "gcc"
+            "gcc-ar"
+            "gcc-nm"
+            "gcc-ranlib"
+            "g++"
+          )
+
+          # 安装可用的版本到 alternatives
+          for tool in "${tools_gcc[@]}"; do
+            versions=$(ls /usr/bin/${tool}-* | grep -Eo '[0-9]+$' | sort -u)
+            for ver in ${versions}; do
+              sudo update-alternatives --install /usr/bin/${tool} ${tool} /usr/bin/${tool}-${ver} ${ver}
+            done
+          done
+
+          # 查看配置
+          sudo update-alternatives --query gcc
+          sudo update-alternatives --query g++
+
+          # 切换到指定版本
+          for tool in "${tools_gcc[@]}"; do
+            sudo update-alternatives --set ${tool} /usr/bin/${tool}-${gcc_version}
+          done
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+          # 验证
+          gcc --version
+          g++ --version
+          echo "Switched to GCC/G++ version ${gcc_version}"
+
+      - name: (Purge) Existing Clang
+        id: clang-purge
+        if: ${{ env.clang_purge == 'true' }}
+        working-directory: /
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          df -Th
+          sudo -E apt-get -yqq update
+          package_installed=$(dpkg-query -W -f='${binary:Package}\n')
+
+          regexes=(
+            "clang-[0-9]+.*"
+            "clang-format-[0-9]+.*"
+            "clang-tidy-[0-9]+.*"
+            "clangd-[0-9]+.*"
+            # "lld-[0-9]+.*"
+            # "lldb-[0-9]+.*"
+          )
+          packages_purge=()
+          for regex in "${regexes[@]}"; do
+            for package in $package_installed; do
+              if [[ $package =~ $regex ]]; then
+                packages_purge+=("$package")
+              fi
+            done
+          done
+          echo "Packages to be purged: ${packages_purge[@]}"
+
+          set +e
+          for package in "${packages_purge[@]}"; do
+            echo "Attempting to remove $package"
+            sudo -E apt-get -yqq autoremove --purge "$package"
+            if [[ $? -ne 0 ]]; then
+              echo "Failed to remove $package"
+            fi
+          done
+          set -e
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+      - name: (Install) Clang - ${{ env.clang_version }}
+        id: clang-install
+        if: ${{ env.clang_install == 'true' }}
+        working-directory: /
+        run: |
+          packages_install=(
+            "clang-${clang_version}"
+            "clang-format-${clang_version}"
+            "clang-tidy-${clang_version}"
+            "clangd-${clang_version}"
+            # "lld-${clang_version}"
+            # "lldb-${clang_version}"
+          )
+          echo "Packages to be installed: ${packages_install[@]}"
+          sudo -E apt-get -yqq install "${packages_install[@]}"
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+      - name: (Switch) Installed Clang - ${{ env.clang_version }}
+        id: clang-switch
+        if: ${{ env.clang_switch == 'true' }}
+        working-directory: /
+        run: |
+          ls /usr/bin/clang-* /usr/bin/clang-format-* /usr/bin/clang-tidy-* || true
+
+          tools_clang=(
+            "clang"
+            "clang-format"
+            "clang-tidy"
+            "clangd"
+            # "lld"
+            # "lldb"
+          )
+          for tool in "${tools_clang[@]}"; do
+            versions=$(ls /usr/bin/${tool}-* 2>/dev/null | grep -Eo '[0-9]+$' | sort -u || true)
+            for version in ${versions}; do
+              sudo update-alternatives --install /usr/bin/${tool} ${tool} /usr/bin/${tool}-${version} ${version}
+            done
+          done
+
+          sudo update-alternatives --query clang    || true
+          sudo update-alternatives --query clang-format || true
+          sudo update-alternatives --query clang-tidy   || true
+
+          for tool in "${tools_clang[@]}"; do
+            sudo update-alternatives --set ${tool} /usr/bin/${tool}-${clang_version} || true
+          done
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+          # Verify
+          clang --version || true
+          clang-format --version || true
+          clang-tidy --version || true
+          echo "Switched to Clang version ${clang_version}"
+
+      - name: (Switch) AArch64 Cross-Compiler - ${{ env.gcc_version }}
+        id: switch-aarch64-gcc
+        if: ${{ inputs.Target_System == 'MediaTek_Ralink_ARM' }}
+        working-directory: /
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          df -Th
+          sudo -E apt-get -yqq update
+          package_installed=$(dpkg-query -W -f='${binary:Package}\n')
+
+          packages_install=(
+            "gcc-${{ env.gcc_version }}-aarch64-linux-gnu"
+            "cpp-${{ env.gcc_version }}-aarch64-linux-gnu"
+          )
+          sudo -E apt-get -yqq install "${packages_install[@]}"
+
+          # AArch64专用设置，涵盖所有带版本号的aarch64-linux-gnu工具
+          ls /usr/bin/aarch64-linux-gnu-*
+          tools_aarch64=(
+            "aarch64-linux-gnu-gcc"
+            "aarch64-linux-gnu-cpp"
+            "aarch64-linux-gnu-gcc-ar"
+            "aarch64-linux-gnu-gcc-nm"
+            "aarch64-linux-gnu-gcc-ranlib"
+            "aarch64-linux-gnu-gcov"
+            "aarch64-linux-gnu-gcov-dump"
+            "aarch64-linux-gnu-gcov-tool"
+            "aarch64-linux-gnu-lto-dump"
+          )
+          for tool in "${tools_aarch64[@]}"; do
+            versions=$(ls /usr/bin/${tool}-* 2>/dev/null | grep -Eo '[0-9]+$' | sort -u)
+            for version in ${versions}; do
+              sudo update-alternatives --install /usr/bin/${tool} ${tool} /usr/bin/${tool}-${version} ${version}
+            done
+          done
+          sudo update-alternatives --query aarch64-linux-gnu-gcc
+          # 切换到所需版本
+          for tool in "${tools_aarch64[@]}"; do
+            sudo update-alternatives --set ${tool} /usr/bin/${tool}-${{ env.gcc_version }}
+          done
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+          # 验证版本
+          aarch64-linux-gnu-gcc --version
+          echo "Switched to AArch64 GCC version ${gcc_version}."
+
+      - name: (Purge) JDK
+        id: jdk-purge
+        if: ${{ env.jdk_purge == 'true' }}
+        working-directory: /
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          df -Th
+          sudo -E apt-get -yqq update
+          package_installed=$(dpkg-query -W -f='${binary:Package}\n')
+
+          regexes=(
+            "temurin-[0-9]+-jdk"
+            "openjdk-[0-9]+.*"
+            "zulu*"
+          )
+          packages_purge=()
+          for regex in "${regexes[@]}"; do
+            for package in $package_installed; do
+              if [[ $package =~ $regex ]]; then
+                packages_purge+=("$package")
+              fi
+            done
+          done
+
+          echo "Packages to be purged: ${packages_purge[@]}"
+          set +e
+          for package in "${packages_purge[@]}"; do
+            echo "Attempting to remove $package"
+            sudo -E apt-get -yqq autoremove --purge "$package"
+            if [[ $? -ne 0 ]]; then
+              echo "Failed to remove $package"
+            fi
+          done
+          set -e
+
+          # ===== Clean Android Tools =====
+          sudo find /usr/local/lib/android/sdk/ndk/ -type d -regex '.*/[0-9]+.*' -exec rm -rf {} +
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+      - name: (Install) JDK - ${{ env.jdk_version }}
+        id: jdk-install
+        if: ${{ env.jdk_install == 'true' }}
+        uses: actions/setup-java@main
+        with:
+          distribution: "temurin"
+          java-version: ${{ env.jdk_version }}
+
+      - name: (Install) Docker
+        id: docker-install
+        if: ${{ env.docker_install == 'true' }}
+        working-directory: /
+        run: |
+          # https://docs.docker.com/engine/install/ubuntu/
+
+          # ===== 1. Set up Docker's apt repository =====
+          # Add Docker's official GPG key:
+          # sudo apt-get update
+          # sudo apt-get install ca-certificates curl
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+          # Add the repository to Apt sources:
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update
+
+          # ===== 2. Install the Docker packages =====
+          sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+          # ========== reload ==========
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo -E systemctl daemon-reload
+          df -Th
+
+          docker --version
+
+      - name: (Install) QEMU
+        id: qemu-install
+        if: ${{ env.qemu_install == 'true' }}
+        uses: docker/setup-qemu-action@master
+        # with:
+        #   platforms: ${{ env.arch_branch }}
+
+      - name: Create simulated physical disk
+        id: disk
+        env:
+          path_build: ${{ env.path_build }}
+          root_num: 4
+          mnt_num: 1
+        working-directory: /
+        run: |
+          echo "Current working directory: $(pwd)"
+
+          # 获取 /mnt 和 / 分区的剩余空间
+          mnt_available=$(df -B1 /mnt | tail -1 | awk '{print $4}')
+          root_available=$(df -B1 / | tail -1 | awk '{print $4}')
+          echo "Raw available space in /mnt (bytes): ${mnt_available}"
+          echo "Raw available space in / (bytes): ${root_available}"
+
+          # 减去缓冲空间：/mnt 和 / 分区分别减去缓冲
+          gb2bytes=$((1024 * 1024 * 1024))
+          mnt_size=$((${mnt_available} - ${{ env.mnt_num }} * ${gb2bytes}))
+          root_size=$((${root_available} - ${{ env.root_num }} * ${gb2bytes}))
+          echo "Available space in /mnt (bytes): ${mnt_size}"
+          echo "Available space in / (bytes): ${root_size}"
+
+          # 创建磁盘映像文件
+          sudo truncate -s "${mnt_size}" /mnt/mnt.img
+          sudo truncate -s "${root_size}" /root.img
+
+          # 动态分配可用的循环设备
+          LOOP_MNT=$(sudo losetup --find --show /mnt/mnt.img)
+          LOOP_ROOT=$(sudo losetup --find --show /root.img)
+          echo "Assigned loop device for /mnt/mnt.img: ${LOOP_MNT}"
+          echo "Assigned loop device for /root.img: ${LOOP_ROOT}"
+
+          # 创建物理卷
+          sudo pvcreate "${LOOP_MNT}"
+          sudo pvcreate "${LOOP_ROOT}"
+          # 创建卷组
+          sudo vgcreate github "${LOOP_MNT}" "${LOOP_ROOT}"
+
+          # 在 github 卷组上创建一个名为 runner 的逻辑卷，使用所有可用空间, 并格式化为XFS文件系统
+          sudo lvcreate -n runner -l 100%FREE github
+          sudo mkfs.xfs /dev/github/runner
+
+          # 创建一个挂载点 ${path_build}, 将 runner 逻辑卷挂载到 ${path_build}, 将 ${path_build} 的所有者和组更改为 runner
+          sudo mkdir -p "${path_build}"
+          sudo mount /dev/github/runner "${path_build}"
+          sudo chown -R runner:runner "${path_build}"
+
+          df -Th
+
+      - name: (Check) environment
+        id: check-env
+        working-directory: /
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          df -Th
+
+          echo -e "---------- List all environment variables ----------"
+          printenv
+
+          echo -e "---------- List all installed packages ----------"
+          apt list --installed
+          dpkg-query -Wf '${Installed-Size}\t${Package}\n' | sort -n
+
+          echo -e "---------- Verify Make version ----------"
+          make --version
+
+          echo -e "---------- Verify GCC version ----------"
+          gcc --version
+          g++ --version
+
+      - name: Setup repo
+        id: repo-setup
+        working-directory: /
+        run: |
+          echo "Current working directory: $(pwd)"
+
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+rx ~/bin/repo
+
+          # if [ -d "$HOME/bin" ] ; then
+          #   export PATH="$HOME/bin:$PATH"
+          # fi
+          # export PATH=~/bin:$PATH
+          # cat >> ~/.profile <<EOF
+          # if [ -d "$HOME/bin" ] ; then
+          #     PATH="$HOME/bin:$PATH"
+          # fi
+          # EOF
+          # source ~/.profile
+  
+      - name: Initialize LineageOS source
+        id: repo-init
+        working-directory: ${{ env.path_build }}
+        run: |
+          echo "Current working directory: $(pwd)"
+          export PATH=~/bin:$PATH
+          export REPO_ALLOW_SHALLOW=1
+
+          repo init \
+            --manifest-url ${{ env.manifest-repo }} \
+            --manifest-branch ${{ env.manifest-branch }} \
+            --no-clone-bundle \
+            --depth=1 \
+            --git-lfs \
+            --verbose
+
+          ls -lh ${{ env.path_build }}
+
+          df -Th
+          echo "Repository initialized"
+
+      - name: Sync LineageOS source
+        id: sync
+        working-directory: ${{ env.path_build }}
+        run: |
+          echo "Current working directory: $(pwd)"
+          export PATH=~/bin:$PATH
+          export REPO_ALLOW_SHALLOW=1
+          repo sync --help
+
+          # repo sync -c -n -j 4 && repo sync -c -l -j 16
+          repo sync \
+            --current-branch \
+            --no-clone-bundle \
+            --no-tags \
+            --verbose \
+            --optimized-fetch \
+            --prune \
+            --auto-gc \
+            -j$(nproc --all)
+
+          repo status
+
+          df -Th
+          echo "Source code synced"
+
+      # - name: Compress File with Advanced Settings
+      #   id: compress-file
+      #   if: ${{ 'true' == 'false' }} # disable
+      #   working-directory: ${{ env.path_build }}
+      #   run: |
+      #     FILE_NAME=${{ env.FILE_NAME }}
+      #     COMPRESSED_FILE="${{ env.dir_output }}/${FILE_NAME}.${{ env.target_ext }}"
+      #     echo "::add-mask::$COMPRESSED_FILE"
+
+      #     # Determine memory limit for compression based on available memory
+      #     available_mem=$(free -m | awk '/^Mem:/{print $7}')
+      #     reserve_mem=2048
+      #     echo "Available memory: ${available_mem} MiB"
+      #     if [ "${available_mem}" -gt 6144 ]; then
+      #       memlimit=$((${available_mem} - ${reserve_mem}))"MiB"
+      #     else
+      #       memlimit="4GiB"
+      #     fi
+      #     echo "Setting memory limit: $memlimit"
+
+      #     # Perform compression using xz with memory limits and maximum compression settings
+      #     xz --compress \
+      #       --threads=0 \
+      #       -9 \
+      #       --extreme \
+      #       --memlimit-compress=${memlimit} \
+      #       --check=sha256 \
+      #       --verbose \
+      #       "${{ env.dir_output }}/${FILE_NAME}"
+
+      #     echo "File compressed as $COMPRESSED_FILE"
+      #     echo "COMPRESSED_FILE=${COMPRESSED_FILE}" >> $GITHUB_ENV
+
+      # - name: Upload to artifacts
+      #   id: upload-artifact
+      #   if: ${{ 'true' == 'false' }} # disable
+      #   uses: actions/upload-artifact@main
+      #   with:
+      #     name: compressed-file
+      #     path: "${{ env.dir_output }}/*.${{ env.target_ext }}"
+      #     retention-days: ${{ env.retention_days || '1' }}
