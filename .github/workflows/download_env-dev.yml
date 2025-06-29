@@ -34,7 +34,7 @@ run-name: Download LineageOS (Dev)
 
 jobs:
   build:
-    name: Download LineageOS (Dev)
+    name: Download LineageOS - ${{ inputs.manifest-branch || 'lineage-22.2' }}
     runs-on: "ubuntu-latest"
     env:
       DEBIAN_FRONTEND: noninteractive
