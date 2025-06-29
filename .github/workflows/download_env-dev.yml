@@ -3,10 +3,10 @@ name: Download LineageOS (Dev)
 on:
   push:
     paths:
-      - '.github/workflows/download_env-dev.yml'
+      - ".github/workflows/download_env-dev.yml"
   pull_request:
     paths:
-      - '.github/workflows/download_env-dev.yml'
+      - ".github/workflows/download_env-dev.yml"
   workflow_dispatch:
     inputs:
       manifest-repo:
@@ -35,7 +35,7 @@ run-name: Download LineageOS (Dev)
 jobs:
   build:
     name: Download LineageOS (Dev)
-    runs-on: 'ubuntu-latest'
+    runs-on: "ubuntu-latest"
     env:
       DEBIAN_FRONTEND: noninteractive
       # ----- gcc -----
@@ -49,9 +49,9 @@ jobs:
       clang_switch: false
       clang_version: 19
       # ----- jdk -----
-      jdk_purge: true
-      jdk_install: true
-      jdk_switch: true
+      jdk_purge: false
+      jdk_install: false
+      jdk_switch: false
       jdk_version: 21
       # ----- docker -----
       docker_install: false
@@ -632,7 +632,7 @@ jobs:
           # fi
           # EOF
           # source ~/.profile
-  
+
       - name: Initialize LineageOS source
         id: repo-init
         working-directory: ${{ env.path_build }}
