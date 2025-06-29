@@ -678,6 +678,10 @@ jobs:
 
           repo status
 
+          # 查看LineageOS源代码目录下的文件和目录大小（1级递归）
+          echo -e "\n---------- List all files and directories in the source code directory (1 level) ----------"
+          du -h --max-depth=1 . | sort -hr
+
           df -Th
           echo "Source code synced"
 
