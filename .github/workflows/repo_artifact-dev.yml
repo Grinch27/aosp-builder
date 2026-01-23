@@ -27,7 +27,7 @@ on:
       manifest-branch:
         description: "Manifest branch"
         required: true
-        default: "lineage-18.1"
+        default: "lineage-23.0"
         type: string
       device_code:
         description: "Android version"
@@ -130,7 +130,7 @@ jobs:
         working-directory: /
         run: |
           echo "${{ env.custom_env }}" | tr '${{ env.flag_split }}' '\n' | tee -a $GITHUB_ENV
-      
+
       # ========== Clean up environment ==========
       - name: Clean Snap
         id: clean-snap
@@ -184,7 +184,7 @@ jobs:
 
           df -Th
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
-      
+
       - name: Clean Runner
         id: clean-runner
         env:
