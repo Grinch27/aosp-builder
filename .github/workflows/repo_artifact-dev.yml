@@ -8,7 +8,7 @@ on:
         description: "Runner Image"
         type: string
         required: false
-        default: "ubuntu-latest"
+        default: "ubuntu-slim"
       java-version:
         description: "Java version"
         required: false
