@@ -122,6 +122,10 @@ jobs:
 
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
+      # ========== General Environment Setup: Start ==========
+
+      # ========== General Environment Setup: End ==========
+
       - name: Load Custom Environment Variables
         id: env-custom
         if: ${{ env.custom_env != '' }}
@@ -249,126 +253,6 @@ jobs:
 
           df -Th
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
-
-      # - name: Clean Runner
-      #   id: clean-runner
-      #   # if: ${{ 'true' == 'false' }} # disable
-      #   env:
-      #     DEBIAN_FRONTEND: noninteractive
-      #     version_gcc: 13
-      #     VERSION_JDK: ${{ inputs.java-version || '11' }}
-      #   working-directory: /
-      #   run: |
-      #     echo -e "Current working directory: $(pwd)"
-
-      #     # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
-      #     sudo -E apt-get -qq -y update
-      #     installed_packages=$(dpkg-query -W -f='${binary:Package}\n')
-
-      #     # ===== Clean Apt =====
-      #     # ----- package for purge -----
-      #     packages_purge=(
-      #       "docker*"
-      #       "ghc*"
-      #       "zulu*"
-      #       "google*"
-      #       "firefox*"
-      #       "dotnet*"
-      #       "powershell*"
-      #       "microsoft-edge*"
-      #       # Databases
-      #       "sqlite*"
-      #       "postgresql*"
-      #       "mysql*"
-      #       "mongodb*"
-      #       "moby*"
-      #       "apache2*"
-      #       "nginx*"
-      #       "php*"
-      #     )
-      #     sudo -E apt-get -qq -y autoremove --purge "${packages_purge[@]}"
-
-      #     # ----- package for re-install -----
-      #     regexes=(
-      #       # ----- Language and Runtime -----
-      #       "clang-1[0-7].*"
-      #       "clang-format-1[0-7].*"
-      #       "clang-tidy-1[0-7].*"
-      #       "gcc-1[24].*"
-      #       "libgcc-1[24].*"
-      #       "g++-1[24].*"
-      #       "cpp-1[24].*"
-      #       "libstdc++-1[24].*"
-      #       "gfortran-1[24].*"
-      #       "libgfortran-1[24].*"
-      #       # ----- Java -----
-      #       "temurin-[0-9]+-jdk"
-      #     )
-      #     packages_purge=()
-      #     for regex in "${regexes[@]}"; do
-      #       for package in $installed_packages; do
-      #         if [[ $package =~ $regex ]]; then
-      #             packages_purge+=("$package")
-      #         fi
-      #       done
-      #     done
-
-      #     echo "Packages to be purged: ${packages_purge[@]}"
-      #     set +e
-      #     for package in "${packages_purge[@]}"; do
-      #       echo "Attempting to remove $package"
-      #       sudo -E apt-get -qq -y autoremove --purge $package
-      #       if [[ $? -ne 0 ]]; then
-      #         echo "Failed to remove $package"
-      #       fi
-      #     done
-      #     set -e
-
-      #     # packages_install=(
-      #     #   # ----- Language and Runtime -----
-      #     #   "clang"
-      #     #   "clang-format"
-      #     #   "clang-tidy"
-      #     #   "gcc"
-      #     #   "libgcc-${{ env.version_gcc }}-dev"
-      #     #   "g++"
-      #     #   "cpp"
-      #     #   "libstdc++-${{ env.version_gcc }}-dev"
-      #     #   "gfortran"
-      #     #   "libgfortran-${{ env.version_gcc }}-dev"
-      #     #   # ----- Java -----
-      #     #   "openjdk-${{ env.VERSION_JDK }}-jdk"
-      #     # )
-      #     # echo "Packages to be installed: ${packages_install[@]}"
-      #     # sudo -E apt-get -qq -y install "${packages_install[@]}"
-
-      #     # ===== Clean Browsers and Drivers =====
-      #     sudo -E rm -rf /usr/local/share/chromedriver-linux64
-      #     sudo -E rm -rf /usr/local/share/chromium
-      #     sudo -E rm -rf /usr/local/share/edge_driver
-      #     sudo -E rm -rf /usr/local/share/gecko_driver
-      #     sudo -E rm -rf /usr/share/java/selenium-server.jar
-
-      #     # ===== Clean PowerShell Tools =====
-      #     sudo -E rm -rf /usr/local/share/powershell
-
-      #     # ===== Clean Android Tools =====
-      #     sudo find /usr/local/lib/android/sdk/ndk/ -type d -regex '.*/2[0-6].*' -exec rm -rf {} +
-
-      #     # ===== Clean Swap =====
-      #     # 如果环境变量 AGENT_TOOLSDIRECTORY 不为空，则删除该目录及其所有内容
-      #     [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
-      #     # 关闭所有交换空间 删除指定的交换文件
-      #     sudo swapoff -a
-      #     sudo rm -f /swapfile /mnt/swapfile
-
-      #     # ===== reload =====
-      #     sudo -E apt-get -qq -y autoremove --purge
-      #     sudo -E apt-get -qq clean
-      #     sudo -E systemctl daemon-reload
-
-      #     df -Th
-      #     echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
       - name: Initialization environment
         id: init
@@ -599,56 +483,13 @@ jobs:
 
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
-      - name: Create simulated physical disk
+      - name: (Disk) disk workspace
         id: disk
-        env:
+        uses: Grinch27/github-actions/.github/actions/setup-disk@main
+        with:
           path_build: ${{ env.path_build }}
           root_num: 4
           mnt_num: 1
-        working-directory: /
-        run: |
-          echo "Current working directory: $(pwd)"
-
-          # 获取 /mnt 和 / 分区的剩余空间
-          mnt_available=$(df -B1 /mnt | tail -1 | awk '{print $4}')
-          root_available=$(df -B1 / | tail -1 | awk '{print $4}')
-          echo "Raw available space in /mnt (bytes): ${mnt_available}"
-          echo "Raw available space in / (bytes): ${root_available}"
-
-          # 减去缓冲空间：/mnt 和 / 分区分别减去缓冲
-          gb2bytes=$((1024 * 1024 * 1024))
-          mnt_size=$((${mnt_available} - ${{ env.mnt_num }} * ${gb2bytes}))
-          root_size=$((${root_available} - ${{ env.root_num }} * ${gb2bytes}))
-          echo "Available space in /mnt (bytes): ${mnt_size}"
-          echo "Available space in / (bytes): ${root_size}"
-
-          # 创建磁盘映像文件
-          sudo truncate -s "${mnt_size}" /mnt/mnt.img
-          sudo truncate -s "${root_size}" /root.img
-
-          # 动态分配可用的循环设备
-          LOOP_MNT=$(sudo losetup --find --show /mnt/mnt.img)
-          LOOP_ROOT=$(sudo losetup --find --show /root.img)
-          echo "Assigned loop device for /mnt/mnt.img: ${LOOP_MNT}"
-          echo "Assigned loop device for /root.img: ${LOOP_ROOT}"
-
-          # 创建物理卷
-          sudo pvcreate "${LOOP_MNT}"
-          sudo pvcreate "${LOOP_ROOT}"
-          # 创建卷组
-          sudo vgcreate github "${LOOP_MNT}" "${LOOP_ROOT}"
-
-          # 在 github 卷组上创建一个名为 runner 的逻辑卷，使用所有可用空间, 并格式化为XFS文件系统
-          sudo lvcreate -n runner -l 100%FREE github
-          sudo mkfs.xfs /dev/github/runner
-
-          # 创建一个挂载点 ${path_build}, 将 runner 逻辑卷挂载到 ${path_build}, 将 ${path_build} 的所有者和组更改为 runner
-          sudo mkdir -p "${path_build}"
-          sudo mount /dev/github/runner "${path_build}"
-          sudo chown -R runner:runner "${path_build}"
-
-          df -Th
-          echo "status=success" >> "${GITHUB_OUTPUT}"
 
       - name: Setup ccache
         id: ccache
