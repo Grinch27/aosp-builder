@@ -122,10 +122,6 @@ jobs:
 
           echo "status=success" | tee -a ${GITHUB_OUTPUT}
 
-      # ========== General Environment Setup: Start ==========
-
-      # ========== General Environment Setup: End ==========
-
       - name: Load Custom Environment Variables
         id: env-custom
         if: ${{ env.custom_env != '' }}
@@ -136,123 +132,21 @@ jobs:
           echo "${{ env.custom_env }}" | tr '${{ env.flag_split }}' '\n' | tee -a $GITHUB_ENV
 
       # ========== Clean up environment ==========
-      - name: Clean Snap
-        id: clean-snap
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        working-directory: /
-        run: |
-          echo -e "Current working directory: $(pwd)"
-          df -Th
 
-          sudo -E apt-get -yqq update
-          sudo snap list
+      # ========== General Environment Setup: Start ==========
+      - name: (Purge) Snap
+        id: purge-snap
+        uses: Grinch27/github-actions/.github/actions/purge-snap@main
 
-          # ===== Remove snap =====
-          for p in $(snap list | awk '{print $1}'); do
-            sudo snap remove $p
-          done
-          sudo systemctl stop snapd
-          sudo systemctl disable --now snapd.socket
-          sudo apt-get -yqq autoremove --purge snapd
-          sudo rm -rf ~/snap
-          sudo rm -rf /snap
-          sudo rm -rf /var/snap
-          sudo rm -rf /var/lib/snapd
-          sudo rm -rf /var/cache/snapd
-          sudo bash -c 'cat <<EOF > /etc/apt/preferences.d/nosnap.pref
-          Package: snapd
-          Pin: release a=*
-          Pin-Priority: -10
-          EOF'
-          sudo -E systemctl daemon-reload
-
-          df -Th
-          echo "status=success" | tee -a ${GITHUB_OUTPUT}
-
-      - name: Clean Docker
+      - name: (Clean) Docker Images
         id: clean-docker
-        # if: ${{ 'true' == 'false' }} # disable
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        working-directory: /
-        run: |
-          echo -e "Current working directory: $(pwd)"
-          df -Th
+        uses: Grinch27/github-actions/.github/actions/clean-docker_image@main
 
-          docker image list
-          docker image prune -a -f
-          # for image in $(docker images -q); do
-          #   docker rmi -f $image
-          # done
-
-          df -Th
-          echo "status=success" | tee -a ${GITHUB_OUTPUT}
-
-      - name: Clean Runner
+      - name: (Clean) Runner
         id: clean-runner
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        working-directory: /
-        run: |
-          echo -e "Current working directory: $(pwd)"
-          df -Th
+        uses: Grinch27/github-actions/.github/actions/clean-runner@main
 
-          # ===== Clean Apt =====
-          # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
-          sudo -E apt-get -yqq update
-          package_installed=$(dpkg-query -W -f='${binary:Package}\n')
-
-          # ----- package for purge -----
-          packages_purge=(
-            "docker*"
-            "ghc*"
-            "zulu*"
-            "google*"
-            "firefox*"
-            "dotnet*"
-            "powershell*"
-            "microsoft-edge*"
-            "sqlite*"
-            "postgresql*"
-            "mysql*"
-            "mongodb*"
-            "moby*"
-            "apache2*"
-            "nginx*"
-            "php*"
-          )
-          sudo -E apt-get -yqq autoremove --purge "${packages_purge[@]}"
-
-          # ===== Clean Browsers and Drivers =====
-          sudo -E rm -rf /usr/local/share/chromedriver-linux64
-          sudo -E rm -rf /usr/local/share/chromium
-          sudo -E rm -rf /usr/local/share/edge_driver
-          sudo -E rm -rf /usr/local/share/gecko_driver
-          sudo -E rm -rf /usr/share/java/selenium-server.jar
-
-          # ===== Clean PowerShell Tools =====
-          sudo -E rm -rf /usr/local/share/powershell
-
-          # ===== Clean Android Tools =====
-          sudo find /usr/local/lib/android/sdk/ndk/ -type d -regex '.*/2[0-6].*' -exec rm -rf {} +
-
-          # ===== Clean AGENT_TOOLSDIRECTORY =====
-          # 如果环境变量 AGENT_TOOLSDIRECTORY 不为空，则删除该目录及其所有内容
-          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
-
-          # ===== Clean Swap =====
-          # 关闭所有交换空间 删除指定的交换文件
-          sudo swapoff -a
-          sudo rm -f /swapfile /mnt/swapfile
-
-          # ===== reload =====
-          sudo -E apt-get -yqq autoremove --purge
-          sudo -E apt-get -qq clean
-          sudo -E systemctl daemon-reload
-
-          df -Th
-          echo "status=success" | tee -a ${GITHUB_OUTPUT}
+      # ========== General Environment Setup: End ==========
 
       - name: Initialization environment
         id: init
