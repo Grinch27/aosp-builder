@@ -1,0 +1,333 @@
+name: LineageOS selene fastboot build
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_image:
+        description: Runner image
+        type: string
+        required: false
+        default: ubuntu-24.04
+      manifest_repo:
+        description: LineageOS manifest repository
+        type: string
+        required: false
+        default: https://github.com/LineageOS/android.git
+      manifest_branch:
+        description: LineageOS branch
+        type: string
+        required: false
+        default: lineage-20
+      java_version:
+        description: JDK version
+        type: string
+        required: false
+        default: "11"
+      lunch_target:
+        description: Lunch target
+        type: string
+        required: false
+        default: lineage_selene-userdebug
+      build_targets:
+        description: Space-separated mka targets
+        type: string
+        required: false
+        default: bacon
+      repo_depth:
+        description: repo init depth
+        type: string
+        required: false
+        default: "1"
+      device_branch:
+        description: device/xiaomi/selene branch
+        type: string
+        required: false
+        default: lineage-20
+      common_branch:
+        description: device/xiaomi/mt6768-common branch
+        type: string
+        required: false
+        default: lineage-20
+      vendor_branch:
+        description: vendor/xiaomi/selene branch
+        type: string
+        required: false
+        default: lineage-20
+      common_vendor_branch:
+        description: vendor/xiaomi/mt6768-common branch
+        type: string
+        required: false
+        default: lineage-20
+      kernel_branch:
+        description: kernel/xiaomi/selene branch
+        type: string
+        required: false
+        default: thirteen-stable
+
+jobs:
+  build:
+    name: ${{ inputs.manifest_branch }} ${{ inputs.lunch_target }}
+    runs-on: ${{ inputs.runner_image }}
+    timeout-minutes: 360
+    env:
+      BUILD_DIR: /android/lineage
+      PRODUCT_DEVICE: selene
+      ARTIFACT_DIR: /tmp/selene-artifacts
+    steps:
+      - name: Prepare artifact directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${ARTIFACT_DIR}"
+          cat > "${ARTIFACT_DIR}/build-inputs.txt" <<EOF
+          runner_image=${{ inputs.runner_image }}
+          manifest_repo=${{ inputs.manifest_repo }}
+          manifest_branch=${{ inputs.manifest_branch }}
+          java_version=${{ inputs.java_version }}
+          lunch_target=${{ inputs.lunch_target }}
+          build_targets=${{ inputs.build_targets }}
+          repo_depth=${{ inputs.repo_depth }}
+          device_branch=${{ inputs.device_branch }}
+          common_branch=${{ inputs.common_branch }}
+          vendor_branch=${{ inputs.vendor_branch }}
+          common_vendor_branch=${{ inputs.common_vendor_branch }}
+          kernel_branch=${{ inputs.kernel_branch }}
+          EOF
+
+      - name: Free disk space
+        shell: bash
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euxo pipefail
+          sudo apt-get -qq update
+          sudo apt-get -qq -y install lvm2 xfsprogs
+          docker image prune -af || true
+          sudo swapoff -a || true
+          sudo rm -f /swapfile /mnt/swapfile || true
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/* || true
+          sudo apt-get -qq -y autoremove --purge \
+            'dotnet*' 'llvm*' 'mysql*' 'postgresql*' 'mongodb*' \
+            'microsoft-edge*' 'google-chrome*' 'firefox*' 'powershell*' || true
+          df -h
+
+      - name: Create build volume
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          mnt_available=$(df -B1 /mnt | awk 'END { print $4 }')
+          root_available=$(df -B1 / | awk 'END { print $4 }')
+          gb=$((1024 * 1024 * 1024))
+          mnt_size=$((mnt_available - 1 * gb))
+          root_size=$((root_available - 4 * gb))
+
+          sudo truncate -s "${mnt_size}" /mnt/mnt.img
+          sudo truncate -s "${root_size}" /root.img
+
+          loop_mnt=$(sudo losetup --find --show /mnt/mnt.img)
+          loop_root=$(sudo losetup --find --show /root.img)
+
+          sudo pvcreate "${loop_mnt}"
+          sudo pvcreate "${loop_root}"
+          sudo vgcreate github "${loop_mnt}" "${loop_root}"
+          sudo lvcreate -n runner -l 100%FREE github
+          sudo mkfs.xfs /dev/github/runner
+
+          sudo mkdir -p "${BUILD_DIR}"
+          sudo mount /dev/github/runner "${BUILD_DIR}"
+          sudo chown -R runner:runner "${BUILD_DIR}"
+          df -h
+
+      - name: Install build dependencies
+        shell: bash
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euxo pipefail
+
+          packages=(
+            bc
+            bison
+            build-essential
+            ca-certificates
+            curl
+            flex
+            g++
+            gcc
+            gcc-aarch64-linux-gnu
+            git
+            git-lfs
+            gnupg
+            gperf
+            imagemagick
+            lib32readline-dev
+            lib32z1-dev
+            libelf-dev
+            libncurses-dev
+            libssl-dev
+            libsdl1.2-dev
+            libxml2
+            libxml2-utils
+            lz4
+            lzop
+            make
+            pngcrush
+            python3
+            rsync
+            schedtool
+            squashfs-tools
+            unzip
+            xmlstarlet
+            xsltproc
+            zip
+            zlib1g-dev
+          )
+
+          sudo apt-get -qq update
+          sudo apt-get -qq -y install "${packages[@]}"
+
+          curl -fsSLO http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.4-2_amd64.deb
+          sudo dpkg -i libtinfo5_6.4-2_amd64.deb
+          rm -f libtinfo5_6.4-2_amd64.deb
+
+          curl -fsSLO http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libncurses5_6.4-2_amd64.deb
+          sudo dpkg -i libncurses5_6.4-2_amd64.deb
+          rm -f libncurses5_6.4-2_amd64.deb
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Setup repo tool
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p ~/bin
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o ~/bin/repo
+          chmod a+rx ~/bin/repo
+
+      - name: Initialize source tree
+        working-directory: ${{ env.BUILD_DIR }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export PATH=~/bin:$PATH
+          export REPO_ALLOW_SHALLOW=1
+
+          repo init \
+            --manifest-url "${{ inputs.manifest_repo }}" \
+            --manifest-branch "${{ inputs.manifest_branch }}" \
+            --depth="${{ inputs.repo_depth }}" \
+            --git-lfs \
+            --no-clone-bundle
+
+      - name: Generate selene local manifest
+        working-directory: ${{ env.BUILD_DIR }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p .repo/local_manifests
+          cat > .repo/local_manifests/selene.xml <<EOF
+          <manifest>
+            <remote name="github" fetch="https://github.com" />
+            <project path="device/xiaomi/selene" name="selene-devs/android_device_xiaomi_selene" remote="github" revision="${{ inputs.device_branch }}" clone-depth="1" />
+            <project path="device/xiaomi/mt6768-common" name="LineageOS/android_device_xiaomi_mt6768-common" remote="github" revision="${{ inputs.common_branch }}" clone-depth="1" />
+            <project path="vendor/xiaomi/selene" name="atharvnegi/vendor_xiaomi_selene" remote="github" revision="${{ inputs.vendor_branch }}" clone-depth="1" />
+            <project path="vendor/xiaomi/mt6768-common" name="mt6768-dev/proprietary_vendor_xiaomi_mt6768-common-legacy" remote="github" revision="${{ inputs.common_vendor_branch }}" clone-depth="1" />
+            <project path="kernel/xiaomi/selene" name="TelegramAt25/android_kernel_xiaomi_selene" remote="github" revision="${{ inputs.kernel_branch }}" clone-depth="1" />
+          </manifest>
+          EOF
+          cp -av .repo/local_manifests/selene.xml "${ARTIFACT_DIR}/selene.xml"
+
+      - name: Sync source
+        working-directory: ${{ env.BUILD_DIR }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export PATH=~/bin:$PATH
+          export REPO_ALLOW_SHALLOW=1
+
+          repo sync \
+            --current-branch \
+            --force-sync \
+            --no-clone-bundle \
+            --no-tags \
+            --optimized-fetch \
+            --prune \
+            -j"$(nproc --all)"
+
+          repo manifest -r -o "${ARTIFACT_DIR}/pinned-manifest.xml"
+
+      - name: Build selene
+        working-directory: ${{ env.BUILD_DIR }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          set -o pipefail
+
+          export PATH=~/bin:$PATH
+          export BUILD_USERNAME=github-actions
+          export BUILD_HOSTNAME=github-actions
+
+          source build/envsetup.sh
+          lunch "${{ inputs.lunch_target }}"
+
+          read -r -a build_targets <<< "${{ inputs.build_targets }}"
+          mka "${build_targets[@]}" 2>&1 | tee "${ARTIFACT_DIR}/build.log"
+
+      - name: Collect artifacts
+        working-directory: ${{ env.BUILD_DIR }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          shopt -s nullglob
+
+          product_dir="${BUILD_DIR}/out/target/product/${PRODUCT_DEVICE}"
+
+          for pattern in \
+            boot.img \
+            recovery.img \
+            dtbo.img \
+            vbmeta.img \
+            vbmeta_system.img \
+            vbmeta_vendor.img \
+            vendor_boot.img \
+            init_boot.img \
+            super_empty.img \
+            lineage-*.zip; do
+            for file in "${product_dir}/"${pattern}; do
+              cp -av "${file}" "${ARTIFACT_DIR}/"
+            done
+          done
+
+          find "${product_dir}" -maxdepth 1 -type f | sort > "${ARTIFACT_DIR}/product-files.txt"
+
+          (
+            cd "${ARTIFACT_DIR}"
+            sha256sum * > SHA256SUMS.txt
+          )
+
+      - name: Write workflow summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## selene build"
+            echo
+            echo "- manifest branch: ${{ inputs.manifest_branch }}"
+            echo "- lunch target: ${{ inputs.lunch_target }}"
+            echo "- build targets: ${{ inputs.build_targets }}"
+            echo "- artifact name: lineageos-selene-fastboot"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lineageos-selene-fastboot
+          path: ${{ env.ARTIFACT_DIR }}
+          if-no-files-found: error
+          compression-level: 0
