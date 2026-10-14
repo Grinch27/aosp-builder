@@ -11,13 +11,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  runner-image:
+    name: ubuntu-latest - runner-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      RUNNER_IMAGE: ${{ steps.resolve-runner-image.outputs.RUNNER_IMAGE }}
+    steps:
+      - name: Resolve runner-image
+        id: resolve-runner-image
+        uses: Grinch27/github-actions/.github/actions/resolve-runner-image@main
+
   uboot:
     name: ${{ matrix.workflows_inputs.manifest-branch }}
+    needs: runner-image
     uses: ./.github/workflows/lineageos-dev.yml
     strategy:
       fail-fast: false
       matrix:
-        runner_image: ["ubuntu-24.04"]
         workflows_inputs:
           # https://wiki.lineageos.org/emulator
           # Different versions of LineageOS require different JDK (Java Development Kit) versions.
@@ -75,7 +87,7 @@ jobs:
             lunch_code: "aosp_x86_64-eng"
             java-version: "8"
     with:
-      runner_image: ${{ matrix.runner_image }}
+      runner_image: ${{ needs.runner-image.outputs.RUNNER_IMAGE }}
       manifest-repo: ${{ matrix.workflows_inputs.manifest-repo }}
       manifest-branch: ${{ matrix.workflows_inputs.manifest-branch }}
       device_code: ${{ matrix.workflows_inputs.device_code || '' }}
