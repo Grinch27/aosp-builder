@@ -8,7 +8,7 @@ on:
         description: "Runner Image"
         type: string
         required: false
-        default: "ubuntu-slim"
+        default: ""
       java-version:
         description: "Java version"
         required: false
@@ -54,7 +54,7 @@ on:
       runner_image:
         description: "Runner Image"
         type: string
-        required: true
+        required: false
       java-version:
         description: "Java version"
         required: false
@@ -94,9 +94,22 @@ env:
   custom_env: ${{ inputs.custom_env || '' }}
 
 jobs:
+  runner-image:
+    name: ubuntu-latest - runner-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      RUNNER_IMAGE: ${{ steps.resolve-runner-image.outputs.RUNNER_IMAGE }}
+    steps:
+      - name: Resolve runner-image
+        id: resolve-runner-image
+        uses: Grinch27/github-actions/.github/actions/resolve-runner-image@main
+
   build:
     name: ${{ inputs.device_code }} - ${{ inputs.lunch_code }} ${{ inputs.breakfast_code }} ${{ inputs.brunch_code }} - ${{ inputs.manifest-repo }} - ${{ inputs.manifest-branch }}
-    runs-on: ${{ inputs.runner_image || 'ubuntu-latest' }}
+    needs: runner-image
+    runs-on: ${{ inputs.runner_image || needs.runner-image.outputs.RUNNER_IMAGE }}
     env:
       path_build: "/android/lineage"
       manifest-repo: ${{ inputs.manifest-repo }}
