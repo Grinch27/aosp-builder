@@ -27,12 +27,12 @@ env:
   compress: "true"
   custom_env: ${{ inputs.custom_env || '' }}
 
+permissions: write-all
+
 jobs:
   runner-image:
     name: ubuntu-latest - runner-image
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       RUNNER_IMAGE: ${{ steps.resolve-runner-image.outputs.RUNNER_IMAGE }}
     steps:
@@ -44,8 +44,6 @@ jobs:
     name: Build Artifacts
     needs: runner-image
     runs-on: ${{ needs.runner-image.outputs.RUNNER_IMAGE }}
-    permissions:
-      contents: write
     env:
       registry_local: "localhost:5000"
       version: ${{ needs.check.outputs.version || 'null' }}
