@@ -93,12 +93,12 @@ run-name: ${{ inputs.device_code }} - ${{ inputs.lunch_code }} ${{ inputs.breakf
 env:
   custom_env: ${{ inputs.custom_env || '' }}
 
+permissions: write-all
+
 jobs:
   runner-image:
     name: ubuntu-latest - runner-image
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       RUNNER_IMAGE: ${{ steps.resolve-runner-image.outputs.RUNNER_IMAGE }}
     steps:
