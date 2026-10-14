@@ -7,7 +7,7 @@ on:
         description: Runner image
         type: string
         required: false
-        default: ubuntu-24.04
+        default: ''
       manifest_repo:
         description: LineageOS manifest repository
         type: string
@@ -65,9 +65,22 @@ on:
         default: thirteen-stable
 
 jobs:
+  runner-image:
+    name: ubuntu-latest - runner-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      RUNNER_IMAGE: ${{ steps.resolve-runner-image.outputs.RUNNER_IMAGE }}
+    steps:
+      - name: Resolve runner-image
+        id: resolve-runner-image
+        uses: Grinch27/github-actions/.github/actions/resolve-runner-image@main
+
   build:
     name: ${{ inputs.manifest_branch }} ${{ inputs.lunch_target }}
-    runs-on: ${{ inputs.runner_image }}
+    needs: runner-image
+    runs-on: ${{ inputs.runner_image || needs.runner-image.outputs.RUNNER_IMAGE }}
     timeout-minutes: 360
     env:
       BUILD_DIR: /android/lineage
@@ -80,7 +93,7 @@ jobs:
           set -euo pipefail
           mkdir -p "${ARTIFACT_DIR}"
           cat > "${ARTIFACT_DIR}/build-inputs.txt" <<EOF
-          runner_image=${{ inputs.runner_image }}
+          runner_image=${{ inputs.runner_image || needs.runner-image.outputs.RUNNER_IMAGE }}
           manifest_repo=${{ inputs.manifest_repo }}
           manifest_branch=${{ inputs.manifest_branch }}
           java_version=${{ inputs.java_version }}
