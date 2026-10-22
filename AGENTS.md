@@ -4,7 +4,7 @@
 Repository: Grinch27/aosp-builder
 Part I: common GitHub Actions standards adapted from Grinch27/openwrt-compiler/AGENTS.md.
 Part II: repository-specific instructions. Existing content, if present, is preserved verbatim in Part II-B.
-This deployment changes only AGENTS.md; it does not constitute approval for workflow or source modification.
+The initial rules deployment changed only AGENTS.md. Current implementation scope is recorded in Part II.
 -->
 
 # Part I — GitHub Actions 通用规范（统一维护）
@@ -525,6 +525,19 @@ Android 镜像的构建、静态检查、模拟器验证和真实设备刷写是
 
 私有源码、设备日志、密钥和访问 Token 不得泄漏到公开日志、Artifact 或仓库；不擅自启动含私有输入的远端运行。GitHub Release 发布、外部推送、付费 Runner、权限变更及设备操作需要当前明确授权。
 
-本次仅部署 `AGENTS.md` 到 `main`，不修改其他工作流和源码，不主动触发构建或设备操作。
+最初任务仅部署 AGENTS.md。2026-10-23 当前用户明确要求参考 twrp_builder，将 lineageos_selene 构建项目部署到本仓库；该授权覆盖新原生编排、文档、测试及向本仓库 main 的对应提交。不修改两个参考/归档仓库，不授权公开私有源码、付费资源、设备操作或自动启动私有输入构建。
+
+## 5. 固定图 selene Native 入口
+
+- 新入口 `.github/workflows/lineageos-selene-native.yml`；先读 README.md、SELENE_BUILD.md、selene.lock.json、scripts/selene.py 和 scripts/selene-build.sh。既有工作流保持独立，不将其设备树/vendor/kernel 参数移入新固定图。
+- lineageos_selene@5027df9dab99f47ce2962a49b169a62ce27a0948 为只读归档。只读取锁定 default.xml，不扩大为归档 clone、Release 下载、overlay 或历史输出恢复；私有原文不作公开 fixture。
+- Push/PR/manual build=false 只做公开测试与一项目 smoke。完整任务仅允许 main 上手动 build=true，先准备只读 LINEAGE_SOURCE_TOKEN、接收公共证书和本地匹配私钥。Token 不传入同步/编译子进程。远程 Action 默认 main、分支探测和接口已核验，接口变化再复核。
+- 通过统一 runner-image 输出选 Runner；SELENE_BUILD_RUNNER 只覆盖已批准的手动构建 Job，PR 不使用该高资源标签。不新增自动付费、self-hosted/生产宿主使用或资源门槛绕过。
+- 资源策略为 400 GiB 空间和 64 GiB 内存，未实测最低需求。预检失败不清理、格式化、改分区或安装包。独立新工作目录；一次真实失败结束当前尝试，不新增 ALLOW_MISSING、BUILD_BROKEN、忽略同步错误或 SELinux 绕过。
+- JDK/Clang 同源；ncurses ABI 5 仅用核验摘要和包元数据的 Ubuntu 官方二进制包，不自行编译或伪造 ABI 链接。不改全局 Java/Python/网络，不复用历史绝对路径。
+- 成功须有 boot、AB ROM、target-files、AVB 自洽及静态校验；只上传成功后的 CMS 密文，不上传源码、原始日志、manifest 或明文镜像。失败日志仅在临时 Runner；新私有诊断持久出口另行授权。
+- 接收证书不得沿用 TWRP 独立会话证书；不能从存在证书推定本地持有私钥。当前未配置或生成用户交付密钥。
+- 不将静态通过提升为 China TKUCNXM、stock AVB trust、FBE/分区/Virtual A/B、启动或刷写验收；不自动添加设备命令。
+- 修改后运行 stdlib 测试、Bash、YAML/Actionlint、diff 检查；真实私有 manifest 仅本地核对。公开 CI 通过不等于真实 ROM 成功。默认不派子 agent。
 
 <!-- END: AOSP-BUILDER PROJECT RULES -->

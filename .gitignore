@@ -1,2 +1,6 @@
 
 /.local
+
+# Native selene validation caches; private inputs stay outside this repository.
+__pycache__/
+*.pyc

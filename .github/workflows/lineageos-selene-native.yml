@@ -1,0 +1,189 @@
+name: LineageOS selene (Native, locked LOS20)
+
+# Requirements: public validation on push/PR; explicit manual private-source build.
+# Ambiguity: an unbuilt archive graph is not a validated ROM or flashable image.
+# Research: review SHA availability, resource use, stock firmware/AVB/partition gaps.
+# Optimization: one native entry; one private manifest file; shared runner/run_sudo.
+# Risks: dynamic Actions, legacy tools, limited disk/RAM and private compiler output.
+# Validation: unit boundaries, public repo smoke, exact checkout and actual products.
+# GitHub Actions workflow syntax reference:
+# https://docs.github.com/zh/actions/reference/workflows-and-actions/workflow-syntax
+# https://docs.github.com/zh/actions/reference/workflows-and-actions/metadata-syntax
+# https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#yaml-anchors-and-aliases
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/lineageos-selene-native.yml', 'scripts/selene*', 'tests/selene*', 'tests/test_selene.py', 'selene.lock.json']
+  pull_request:
+    paths: ['.github/workflows/lineageos-selene-native.yml', 'scripts/selene*', 'tests/selene*', 'tests/test_selene.py', 'selene.lock.json']
+  workflow_dispatch:
+    inputs:
+      build:
+        description: '读取私有 manifest 并构建完整 ROM；确认资源已获准且本地持有接收证书私钥；仅交付密文'
+        required: true
+        type: boolean
+        default: false
+
+run-name: selene LOS20 native - ${{ github.event_name }} - build=${{ inputs.build || false }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  DEBCONF_NONINTERACTIVE_SEEN: 'true'
+  APT_LISTCHANGES_FRONTEND: none
+  NEEDRESTART_MODE: a
+  TZ: Etc/UTC
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+  GIT_TERMINAL_PROMPT: '0'
+
+concurrency:
+  group: selene-native-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  runner-image:
+    name: ubuntu-latest - runner-image and public validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      RUNNER_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.build && vars.SELENE_BUILD_RUNNER || steps.resolve-runner-image.outputs.RUNNER_IMAGE }}
+    steps:
+      - name: Resolve runner-image
+        id: resolve-runner-image
+        uses: Grinch27/github-actions/.github/actions/resolve-runner-image@main
+      - name: Checkout builder
+        uses: actions/checkout@main
+        with:
+          persist-credentials: false
+      - name: Validate lock, shell and boundary tests
+        run: |
+          set -euo pipefail
+          python3 scripts/selene.py validate-lock
+          bash -n scripts/selene-build.sh tests/selene-repo-smoke.sh
+          python3 -m unittest discover -s tests -p 'test_selene.py' -v
+      - name: Validate workflow syntax
+        run: |
+          set -euo pipefail
+          lint_dir="$(mktemp -d "${RUNNER_TEMP}/selene-actionlint.XXXXXXXX")"
+          release=https://github.com/rhysd/actionlint/releases/download/v1.7.7
+          curl --fail --silent --show-error --location --retry 2 --max-time 120 \
+            "${release}/actionlint_1.7.7_linux_amd64.tar.gz" --output "${lint_dir}/actionlint.tar.gz"
+          curl --fail --silent --show-error --location --retry 2 --max-time 120 \
+            "${release}/actionlint_1.7.7_checksums.txt" --output "${lint_dir}/checksums.txt"
+          mv "${lint_dir}/actionlint.tar.gz" "${lint_dir}/actionlint_1.7.7_linux_amd64.tar.gz"
+          (cd "${lint_dir}" && sha256sum --check --ignore-missing checksums.txt)
+          tar -xzf "${lint_dir}/actionlint_1.7.7_linux_amd64.tar.gz" -C "${lint_dir}" actionlint
+          "${lint_dir}/actionlint" -shellcheck='' .github/workflows/lineageos-selene-native.yml
+      - name: Public synthetic repo init and one-project sync
+        timeout-minutes: 8
+        run: bash tests/selene-repo-smoke.sh
+
+  build:
+    name: selene - bootimage, ROM and target-files - native Ubuntu
+    if: github.event_name == 'workflow_dispatch' && inputs.build && github.ref == 'refs/heads/main'
+    needs: runner-image
+    runs-on: ${{ needs.runner-image.outputs.RUNNER_IMAGE }}
+    timeout-minutes: 350
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@main
+        with:
+          persist-credentials: false
+      - name: Select a new isolated work directory
+        env:
+          APPROVED_WORK_BASE: ${{ vars.SELENE_WORK_BASE }}
+        run: |
+          set -euo pipefail
+          build_base="${APPROVED_WORK_BASE:-${RUNNER_TEMP}}"
+          [[ "${build_base}" == /* && "${build_base}" != *$'\n'* && "${build_base}" != *$'\r'* ]]
+          printf 'BUILD_WORK=%s/selene-%s-%s\n' "${build_base%/}" "${GITHUB_RUN_ID}" "${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_ENV}"
+      - name: Check resources without deleting or formatting disks
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: python3 scripts/selene.py preflight --work "${BUILD_WORK}"
+      - name: Validate recipient and fetch one reviewed private input
+        env:
+          LINEAGE_SOURCE_TOKEN: ${{ secrets.LINEAGE_SOURCE_TOKEN }}
+          SELENE_DELIVERY_CERT: ${{ secrets.SELENE_DELIVERY_CERT }}
+        run: python3 scripts/selene.py fetch --work "${BUILD_WORK}"
+      - name: Install job-scoped run_sudo
+        uses: Grinch27/github-actions/.github/actions/run-sudo@main
+      - name: Install Ubuntu build dependencies
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_ENVIRONMENT}" == github-hosted && "$(dpkg --print-architecture)" == amd64 ]]
+          run_sudo apt-get -qq update
+          run_sudo apt-get -yqq --no-install-recommends install \
+            bc bison build-essential ca-certificates cpio curl file flex g++-multilib \
+            gcc-multilib git gnupg gperf lib32ncurses-dev lib32readline-dev lib32z1-dev \
+            libelf-dev lz4 libncurses-dev libssl-dev libxml2-utils lzop \
+            openssh-client openssl pngcrush python3 rsync unzip util-linux xsltproc zip zlib1g-dev
+      - name: Install verified Ubuntu legacy ABI binary packages
+        run: |
+          set -euo pipefail
+          deb_dir="$(mktemp -d "${RUNNER_TEMP}/selene-ncurses5.XXXXXXXX")"
+          for package in libtinfo5 libncurses5; do
+            filename="${package}_6.3-2ubuntu0.3_amd64.deb"
+            if ! curl --fail --silent --show-error --location --retry 2 --max-time 120 \
+              "https://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/${filename}" --output "${deb_dir}/${filename}"; then
+              curl --fail --silent --show-error --location --retry 2 --max-time 120 \
+                "https://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/${filename}" --output "${deb_dir}/${filename}"
+            fi
+          done
+          (cd "${deb_dir}" && sha256sum --check --strict <<'SHA256'
+          4df4288404108f1a156d014e8764a064e977e34e6d44931ab60451694c03c90d  libtinfo5_6.3-2ubuntu0.3_amd64.deb
+          58da01991712c6856af0658dc5e9cb533c1a6854ab950055ade185e35bc9c276  libncurses5_6.3-2ubuntu0.3_amd64.deb
+          SHA256
+          )
+          for package in libtinfo5 libncurses5; do
+            metadata="$(dpkg-deb --show --showformat='${Package} ${Version} ${Architecture}' "${deb_dir}/${package}_6.3-2ubuntu0.3_amd64.deb")"
+            [[ "${metadata}" == "${package} 6.3-2ubuntu0.3 amd64" ]]
+          done
+          run_sudo apt-get -yqq --no-install-recommends install \
+            "${deb_dir}/libtinfo5_6.3-2ubuntu0.3_amd64.deb" \
+            "${deb_dir}/libncurses5_6.3-2ubuntu0.3_amd64.deb"
+          for package in libtinfo5 libncurses5; do
+            [[ "$(dpkg-query --show --showformat='${Version} ${Architecture} ${Status}' "${package}")" == '6.3-2ubuntu0.3 amd64 install ok installed' ]]
+          done
+      - name: Reproduce locked checkout, compile, validate and seal
+        id: compile
+        run: python3 scripts/selene.py run --work "${BUILD_WORK}"
+      - name: Upload recipient-encrypted successful output
+        if: steps.compile.outcome == 'success'
+        uses: actions/upload-artifact@main
+        with:
+          name: selene-los20-native-sealed-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.BUILD_WORK }}/delivery/selene-output.cms
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Write restricted result summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, 'scripts')
+          from selene import STAGES
+          try:
+              status = json.loads((Path(os.environ['BUILD_WORK']) / 'status.json').read_text())
+          except (OSError, ValueError, KeyError):
+              status = {}
+          stage = status.get('stage')
+          stage = stage if stage in STAGES else 'preflight_or_inputs'
+          code = status.get('exit_code')
+          code = str(code) if type(code) is int and 0 <= code <= 255 else 'see_job_result'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f'Selene LOS20: stage={stage}; exit={code}.\n\n')
+              summary.write('Raw source/logs remain private. Device boot and stock compatibility: NOT_TESTED.\n')
+          PY
