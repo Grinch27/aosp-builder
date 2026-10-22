@@ -22,14 +22,15 @@
 | 合成边界测试 | PASS：30 项；含失败/超时、路径、checkout/link、OTA 设备/哈希/截断、boot 一致性、重复 ZIP 项和 CMS 解密往返 |
 | Bash、Python、JSON/YAML、Actionlint | PASS：新文件；不代表修复原有其他工作流 |
 | Action 分支和入口 | checkout、upload-artifact、Grinch27/github-actions 默认 main；已探测 main/master 并读实际 action.yml |
-| GitHub 公开 Repo smoke | 待部署后查看实际 Actions；不读取私有输入 |
+| GitHub 公开 CI | PASS：[run 39817708128](https://github.com/Grinch27/aosp-builder/actions/runs/39817708128)，对应实现提交 `ba0b19a96becbdb40efa8ffb5b8795e801dadcaf`；30 项测试、Actionlint、真实公开 Repo init + 单项目 sync 全部成功 |
+| 私有完整构建 Job | SKIPPED：此次事件为 push；没有读取私有输入或运行 Android 编译 |
 | 完整 R1 / R2 | NOT_TESTED：未下载 1,257 项、未运行完整编译 |
 | 真实 R3 产品 | NOT_TESTED：合成产品检查不等于真实镜像验收 |
 | TKUCNXM / R4 / R5 | NOT_TESTED / NOT_ACHIEVED：无设备操作或刷写证明 |
 
 ## 后续条件与停止点
 
-1. 查看新入口 Push 的公开 CI；失败时仅据公开证据修正本次实现。
+1. 新入口首次 Push 的公开 CI 已通过；后续修改仍须核对同类结果。该证据不覆盖完整私有源码图和产品构建。
 2. 完整构建须配置只读 Token、公共接收证书，并在本地确认匹配私钥可用；不回显 Secrets。
 3. 资源策略是 400 GiB 空间 / 64 GiB 内存，普通 Runner 将在预检停止。高资源托管标签、套餐、费用上限未确认，当前没有付费授权；先确定资源，再手动 build=true。
 4. 每个 SHA 可取性、旧工具链兼容和完整耗时待验。身份不符、不可取、资源不足或首个失败时结束尝试，不自动换源、禁用检查、增加项目或复制历史输出。
